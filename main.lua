@@ -6,7 +6,8 @@ COLORS = {
 	o = {.92, .69, .47},
 	s = {.83, .54, .93},
 	t = {.97, .58, .77},
-	z = {.66, .83, .46}
+	z = {.66, .83, .46},
+	preview = {.75, .75, .75}
 }
 
 PIECE_STRUCTURES = {
@@ -148,6 +149,9 @@ PIECE_Y_COUNT = 4
 GRID_X_COUNT = 10
 GRID_Y_COUNT = 18
 
+OFFSET_X = 2
+OFFSET_Y = 5
+
 function love.load()
 	love.graphics.setDefaultFilter('nearest', 'nearest')
 
@@ -157,22 +161,7 @@ function love.load()
 
 	love.graphics.setBackgroundColor(255, 255, 255)
 
-	Grid = {}
-	for y = 1, GRID_Y_COUNT do
-		Grid[y] = {}
-		for x = 1, GRID_X_COUNT do
-			Grid[y][x] = ' '
-		end
-	end	
-
-	pieceType = math.random(1, #PIECE_STRUCTURES)
-	pieceRotation = math.random(1, #PIECE_STRUCTURES[pieceType])
-
-
-    pieceX = 3
-    pieceY = 0
-
-    timer = 0
+	initGame()
 end
 
 function love.keypressed(key)
@@ -201,6 +190,7 @@ function love.keypressed(key)
     elseif key == 'c' then
     	while canPieceMove(pieceX, pieceY + 1, pieceRotation) do
     		pieceY = pieceY + 1
+    		timer = TIMER_LIMIT
     	end
     elseif key == 'escape' then
 		love.event.quit()
@@ -214,16 +204,62 @@ function love.update(dt)
 		timer = timer - TIMER_LIMIT
 
 		local testY = pieceY + 1
-		pieceY = canPieceMove(pieceX, testY, pieceRotation) and testY or pieceY
+		if canPieceMove(pieceX, testY, pieceRotation) then
+			pieceY = testY
+		else
+			-- add piece to grid
+			for y = 1, PIECE_Y_COUNT do
+				for x = 1, PIECE_X_COUNT do
+					local block = PIECE_STRUCTURES[pieceType][pieceRotation][y][x]
+					if block ~= ' ' then
+						Grid[pieceY + y][pieceX + x] = block
+					end
+				end
+			end
 
+			for y = 1, GRID_Y_COUNT do
+				local complete = true
+				for x = 1, GRID_X_COUNT do
+					if Grid[y][x] == ' ' then
+						complete = false
+					end
+				end
+
+				if complete then
+					for removeY = y, 2, -1 do
+						for removeX = 1, GRID_X_COUNT do
+							Grid[removeY][removeX] = Grid[removeY - 1][removeX]
+						end
+					end
+
+					for removeX = 1, GRID_X_COUNT do
+						Grid[1][removeX] = ' '
+					end
+				end
+			end
+
+			newPiece()
+
+			if not canPieceMove(pieceX, pieceY, pieceRotation) then
+				initGame()
+			end
+		end
 	end
-
 end
 
 function love.draw()
 	for y = 1, GRID_Y_COUNT do
 		for x = 1, GRID_X_COUNT do
-			drawBlock(Grid[y][x], x, y)	
+			drawBlock(Grid[y][x], x + OFFSET_X, y + OFFSET_Y)	
+		end
+	end
+
+	for y = 1, PIECE_Y_COUNT do
+		for x = 1, PIECE_X_COUNT do
+			local block = PIECE_STRUCTURES[sequence[#sequence]][1][y][x]
+			if block ~= ' ' then
+				drawBlock('preview', x + 5, y + 1)
+			end
 		end
 	end
 
@@ -231,7 +267,7 @@ function love.draw()
 		for x = 1, PIECE_X_COUNT do
 			local block = PIECE_STRUCTURES[pieceType][pieceRotation][y][x]
 			if block ~= ' ' then
-				drawBlock(block, x + pieceX, y + pieceY)
+				drawBlock(block, x + pieceX + OFFSET_X, y + pieceY + OFFSET_Y)
 			end
 		end
 	end
@@ -264,4 +300,45 @@ function canPieceMove(testX, testY, testRotation)
 	end
 
 	return true
+end
+
+function newPiece()
+	pieceX = 3
+	pieceY = 0
+	pieceType = table.remove(sequence)
+	pieceRotation = 1
+
+	if #sequence == 0 then
+		sequence = newSequence()
+	end
+end
+
+function newSequence()
+	sequence = {}
+	for pieceTypeIndex = 1, #PIECE_STRUCTURES do
+		local position = math.random(#sequence + 1)
+		table.insert(sequence, position, pieceTypeIndex)
+	end
+
+	return sequence
+end
+
+function initGame()
+	-- create a grid in which game is played
+	Grid = {}
+	for y = 1, GRID_Y_COUNT do
+		Grid[y] = {}
+		for x = 1, GRID_X_COUNT do
+			Grid[y][x] = ' '
+		end
+	end
+
+	-- create a sequence of pieces
+	sequence = newSequence()
+
+	-- add a new piece to be spawn
+	newPiece()
+
+	-- initialize the timer to zero
+    timer = 0
 end
